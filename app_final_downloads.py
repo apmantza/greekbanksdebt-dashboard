@@ -21,7 +21,7 @@ try:
     issue_types = st.sidebar.multiselect('Select Issue Type(s):', options=df['Issue Type'].dropna().unique(), default=df['Issue Type'].dropna().unique())
     esg_labels = st.sidebar.multiselect('Select ESG Label(s):', options=df['ESG Label'].dropna().unique(), default=df['ESG Label'].dropna().unique())
 
-    # Date range filter for pricing
+    # Date range filter
     valid_dates = df['Pricing Date'].dropna()
     if not valid_dates.empty:
         min_date = valid_dates.min().to_pydatetime()
@@ -45,7 +45,7 @@ try:
     if not filtered_df.empty:
         total_issuances = len(filtered_df)
         cumulative_issuance = filtered_df['Size'].sum() if 'Size' in filtered_df.columns else None
-        cumulative_by_type = filtered_df.groupby('Issue Type')['Size'].sum() if 'Size' in filtered_df.columns else None
+        cumulative_by_issuer_type = filtered_df.groupby(['Issuer','Issue Type'])['Size'].sum() if 'Size' in filtered_df.columns else None
         avg_issuance_per_year = cumulative_issuance / len(filtered_df['Year issued'].unique()) if cumulative_issuance else None
 
         next_year = datetime.now().year + 1
@@ -56,9 +56,9 @@ try:
         st.write(f"Total Issuances: {total_issuances}")
         if cumulative_issuance:
             st.write(f"Cumulative Issuance Size: {cumulative_issuance:,.0f}")
-        if cumulative_by_type is not None:
-            st.write("Cumulative Issuance by Issue Type:")
-            st.write(cumulative_by_type)
+        if cumulative_by_issuer_type is not None:
+            st.write("Cumulative Issuance by Issuer and Issue Type:")
+            st.write(cumulative_by_issuer_type)
         if avg_issuance_per_year:
             st.write(f"Average Issuance per Year: {avg_issuance_per_year:,.0f}")
         if debt_next_year_size:
@@ -77,7 +77,7 @@ try:
     else:
         st.write("No data available for selected filters.")
 
-    # First visual: Per Bank Trend (no toggle)
+    # First visual: Per Bank Trend (show all issuers)
     if not filtered_df.empty:
         trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
         trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True,
@@ -108,7 +108,7 @@ try:
                                         title='Liability Profile: Issuance Size per Year by Issue Type')
             st.plotly_chart(liability_fig_type, use_container_width=True)
 
-    # Download buttons for charts and data
+    # Download buttons for charts and data (HTML format)
     st.subheader('Download Charts and Data')
     if not filtered_df.empty:
         csv = filtered_df.to_csv(index=False)
@@ -119,10 +119,10 @@ try:
             filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
         st.download_button(label='Download Filtered Data (Excel)', data=output.getvalue(), file_name='filtered_data.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-        for fig, name in [(scatter_fig, 'scatter_chart.png'), (trend_fig, 'trend_chart.png'), (liability_fig_bank, 'liability_bank.png'), (liability_fig_type, 'liability_type.png'), (next_year_fig, 'next_year_chart.png')]:
+        for fig, name in [(scatter_fig, 'scatter_chart.html'), (trend_fig, 'trend_chart.html'), (liability_fig_bank, 'liability_bank.html'), (liability_fig_type, 'liability_type.html'), (next_year_fig, 'next_year_chart.html')]:
             if fig:
-                img_bytes = fig.to_image(format="png")
-                st.download_button(label=f"Download {name}", data=img_bytes, file_name=name, mime="image/png")
+                html_bytes = fig.to_html().encode('utf-8')
+                st.download_button(label=f"Download {name}", data=html_bytes, file_name=name, mime="text/html")
 
 except FileNotFoundError:
     st.error(f"Data file '{file_path}' not found. Please ensure it is in the GitHub repo.")
