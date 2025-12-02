@@ -75,7 +75,7 @@ try:
     if tenor_range:
         filtered_df = filtered_df[(filtered_df['Original Tenor'] >= tenor_range[0]) & (filtered_df['Original Tenor'] <= tenor_range[1])]
 
-    st.subheader('Summary Metrics')
+    st.subheader('Summary Data and Visuals')
     if not filtered_df.empty:
         total_issuances = len(filtered_df)
         cumulative_issuance = filtered_df['Size'].sum() if 'Size' in filtered_df.columns else None
@@ -122,7 +122,7 @@ try:
                 st.write("Debt Maturing Next Year Table:")
                 st.dataframe(debt_next_year_table)
 
-        # Enhanced Average Spread Table with corrected logic
+        # Average Spread Table
         avg_spread_next_year_table = calls_next_year.groupby(['Issuer', 'Issue Type'])['Re-offer Spread'].mean().reset_index()
         adjusted_spreads = {}
         for issue_type in filtered_df['Issue Type'].dropna().unique():
@@ -134,12 +134,9 @@ try:
                 last_four.remove(max_spread)
             adjusted_avg = sum(last_four) / len(last_four) if last_four else None
             adjusted_spreads[issue_type] = adjusted_avg
-        avg_spread_next_year_table['Adjusted Avg Spread (Last 4 excl max)'] = avg_spread_next_year_table['Issue Type'].map(adjusted_spreads)
-        st.write("Average Spread of Debt Maturing Next Year (Enhanced):")
+        avg_spread_next_year_table['Expected New Spread (Based on last 4 similar issuances excl. max)'] = avg_spread_next_year_table['Issue Type'].map(adjusted_spreads)
+        st.write("Average Spread of Debt Maturing Next Year:")
         st.dataframe(avg_spread_next_year_table)
-
-        # Additional Visuals
-        st.subheader('Additional Visuals')
 
         # Average Spread Per Year Per Bank Trend
         trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
