@@ -91,11 +91,16 @@ try:
             st.plotly_chart(issuance_visual_fig, use_container_width=True)
 
         # 4) Visual for debt maturing next year by issuer and issue type
-        if not debt_next_year_table.empty:
-            next_year_fig = px.bar(debt_next_year_table, x='Issuer', y='Size', color='Issue Type', barmode='group',
+        next_year = datetime.now().year + 1
+        calls_next_year = filtered_df[filtered_df['FIRST_CALL'].dt.year == next_year]
+        if not calls_next_year.empty:
+            debt_next_year_table = calls_next_year.groupby(['Issuer', 'Issue Type'])['Size'].sum().reset_index()
+            fig_next_year = px.bar(debt_next_year_table, x='Issuer', y='Size', color='Issue Type', barmode='group',
                                    title=f'Debt Maturing in {next_year} by Issuer and Issue Type',
                                    labels={'Size': 'Issuance Size'})
-            st.plotly_chart(next_year_fig, use_container_width=True)
+            fig_next_year.update_layout(yaxis_tickformat=',')
+            st.plotly_chart(fig_next_year, use_container_width=True)
+
         
         # 5) Average Spread Table 
         st.subheader('Spreads')    
