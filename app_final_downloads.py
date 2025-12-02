@@ -59,8 +59,8 @@ try:
     if maturity_filter:
         filtered_df = filtered_df[filtered_df['Maturity'].isin(maturity_filter)]
 
-    # Summary metrics
-    st.subheader('Summary Metrics')
+    # Data and visuals
+    st.subheader('Data and visuals')
     if not filtered_df.empty:
         total_issuances = len(filtered_df)
         cumulative_issuance = filtered_df['Size'].sum() if 'Size' in filtered_df.columns else None
@@ -71,13 +71,13 @@ try:
         # 1) Visual: Cumulative Issuance by Issuer and Issue Type
         cumulative_by_issuer_type = filtered_df.groupby(['Issuer', 'Issue Type'])['Size'].sum().reset_index()
         fig_cumulative = px.bar(cumulative_by_issuer_type, x='Issuer', y='Size', color='Issue Type', barmode='group',
-                                title='Cumulative Issuance by Issuer and Issue Type', labels={'Size': 'Issuance Size'})
+                                title='Cumulative Issuance per Issuer and Issue Type', labels={'Size': 'Issuance Size'})
         fig_cumulative.update_layout(yaxis_tickformat=',')
         st.plotly_chart(fig_cumulative, use_container_width=True)
 
         # 2) Visual: Issuance Size by Year
         issuance_by_year = filtered_df.groupby('Year issued')['Size'].sum().reset_index()
-        fig_year = px.bar(issuance_by_year, x='Year issued', y='Size', title='Issuance Size by Year',
+        fig_year = px.bar(issuance_by_year, x='Year issued', y='Size', title='Issuance per Year',
                           labels={'Size': 'Issuance Size', 'Year issued': 'Year'})
         fig_year.update_layout(yaxis_tickformat=',')
         st.plotly_chart(fig_year, use_container_width=True)
@@ -90,25 +90,15 @@ try:
                                          labels={'Size':'Issuance Size','Year issued':'Year'})
             st.plotly_chart(issuance_visual_fig, use_container_width=True)
 
-        # 4) Visual: Debt Maturing Next Year
-        next_year = datetime.now().year + 1
-        calls_next_year = filtered_df[filtered_df['FIRST_CALL'].dt.year == next_year]
-        if not calls_next_year.empty:
-            debt_next_year_table = calls_next_year.groupby(['Issuer', 'Issue Type'])['Size'].sum().reset_index()
-            fig_next_year = px.bar(debt_next_year_table, x='Issuer', y='Size', color='Issue Type', barmode='group',
-                                   title=f'Debt Maturing in {next_year} by Issuer and Issue Type',
-                                   labels={'Size': 'Issuance Size'})
-            fig_next_year.update_layout(yaxis_tickformat=',')
-            st.plotly_chart(fig_next_year, use_container_width=True)
-
-        # 5) Visual for debt maturing next year by issuer and issue type
+        # 4) Visual for debt maturing next year by issuer and issue type
         if not debt_next_year_table.empty:
             next_year_fig = px.bar(debt_next_year_table, x='Issuer', y='Size', color='Issue Type', barmode='group',
                                    title=f'Debt Maturing in {next_year} by Issuer and Issue Type',
                                    labels={'Size': 'Issuance Size'})
             st.plotly_chart(next_year_fig, use_container_width=True)
-            
-        # 6) Average Spread Table
+        
+        # 5) Average Spread Table 
+        st.subheader('Spreads')    
         avg_spread_next_year_table = calls_next_year.groupby(['Issuer', 'Issue Type'])['Re-offer Spread'].mean().reset_index()
         adjusted_spreads = {}
         for issue_type in filtered_df['Issue Type'].unique():
@@ -124,21 +114,21 @@ try:
 
     else:
         st.write("No data available for selected filters.")
-
-    # 7) First visual: Per Bank Trend
+    
+    # 6) Visual: Average Spread Per Year Per Bank Trend
     if not filtered_df.empty:
         trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
         trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True,
                             title='Average Spread per Year by Bank')
         st.plotly_chart(trend_fig, use_container_width=True)
 
-    # 8) Second visual: Scatter only
+    # 7) Greek Banks Debt Issuances Scatter
     scatter_fig = px.scatter(filtered_df, x='Pricing Date', y='Re-offer Spread', color='Issuer',
                              hover_data={'Issuer': True, 'Issue Type': True, 'ESG Label': True, 'Maturity': True, 'Maturity.1': True, 'FIRST_CALL': True},
                              title="Greek Banks' Debt Issuances")
     st.plotly_chart(scatter_fig, use_container_width=True)
 
-    # 9) Liability profiles (start from current year)
+    # 8) Liability profiles (start from current year)
     st.subheader('Liability Profiles')
     current_year = datetime.now().year
     if 'FIRST_CALL' in filtered_df.columns and 'Size' in filtered_df.columns:
