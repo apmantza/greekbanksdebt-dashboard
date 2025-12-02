@@ -60,9 +60,9 @@ try:
         avg_issuance_per_year = cumulative_issuance / len(filtered_df['Year issued'].unique()) if cumulative_issuance else None
 
         next_year = datetime.now().year + 1
-        maturing_next_year = filtered_df[filtered_df['Maturity.1'].dt.year == next_year] if 'Maturity.1' in filtered_df.columns else pd.DataFrame()
-        debt_next_year_size = maturing_next_year['Size'].sum() if 'Size' in maturing_next_year.columns else None
-        avg_spread_next_year = maturing_next_year['Re-offer Spread'].mean() if not maturing_next_year.empty else None
+        calls_next_year = filtered_df[filtered_df['FIRST_CALL'].dt.year == next_year] if 'FIRST_CALL' in filtered_df.columns else pd.DataFrame()
+        debt_next_year_table = calls_next_year.groupby(['Issuer','Issue Type'])['Size'].sum().reset_index() if not calls_next_year.empty else pd.DataFrame()
+        avg_spread_next_year_table = calls_next_year.groupby(['Issuer','Issue Type'])['Re-offer Spread'].mean().reset_index() if not calls_next_year.empty else pd.DataFrame()
 
         st.write(f"Total Issuances: {total_issuances}")
         if cumulative_issuance:
@@ -72,16 +72,17 @@ try:
             st.write(cumulative_by_issuer_type)
         if avg_issuance_per_year:
             st.write(f"Average Issuance per Year: {avg_issuance_per_year:,.0f}")
-        if debt_next_year_size:
-            st.write(f"Debt Maturing Next Year: {debt_next_year_size:,.0f}")
-        if avg_spread_next_year:
-            st.write(f"Average Spread of Debt Maturing Next Year: {avg_spread_next_year:.2f} bps")
+        if not debt_next_year_table.empty:
+            st.write(f"Debt Maturing Next Year (Calls) by Issuer and Issue Type:")
+            st.dataframe(debt_next_year_table)
+        if not avg_spread_next_year_table.empty:
+            st.write(f"Average Spread of Debt Maturing Next Year by Issuer and Issue Type:")
+            st.dataframe(avg_spread_next_year_table)
 
-        # Extra visual: Debt maturing next year by issuer (move before liability profiles)
-        if not maturing_next_year.empty:
-            next_year_fig = px.bar(maturing_next_year.groupby('Issuer')['Size'].sum().reset_index(),
-                                   x='Issuer', y='Size', color='Issuer',
-                                   title=f'Debt Maturing in {next_year} by Issuer',
+        # Visual for debt maturing next year by issuer and issue type
+        if not debt_next_year_table.empty:
+            next_year_fig = px.bar(debt_next_year_table, x='Issuer', y='Size', color='Issue Type', barmode='group',
+                                   title=f'Debt Maturing in {next_year} by Issuer and Issue Type',
                                    labels={'Size': 'Issuance Size'})
             st.plotly_chart(next_year_fig, use_container_width=True)
 
