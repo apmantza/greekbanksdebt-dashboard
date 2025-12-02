@@ -59,6 +59,9 @@ try:
         cumulative_by_issuer_type = filtered_df.groupby(['Issuer','Issue Type'])['Size'].sum() if 'Size' in filtered_df.columns else None
         avg_issuance_per_year = cumulative_issuance / len(filtered_df['Year issued'].unique()) if cumulative_issuance else None
 
+        # Year of Issuance table
+        issuance_by_year = filtered_df.groupby('Year issued')['Size'].sum().reset_index() if 'Size' in filtered_df.columns else pd.DataFrame()
+
         next_year = datetime.now().year + 1
         calls_next_year = filtered_df[filtered_df['FIRST_CALL'].dt.year == next_year] if 'FIRST_CALL' in filtered_df.columns else pd.DataFrame()
         debt_next_year_table = calls_next_year.groupby(['Issuer','Issue Type'])['Size'].sum().reset_index() if not calls_next_year.empty else pd.DataFrame()
@@ -72,12 +75,23 @@ try:
             st.write(cumulative_by_issuer_type)
         if avg_issuance_per_year:
             st.write(f"Average Issuance per Year: {avg_issuance_per_year:,.0f}")
+        if not issuance_by_year.empty:
+            st.write("Issuance Size by Year:")
+            st.dataframe(issuance_by_year)
         if not debt_next_year_table.empty:
             st.write(f"Debt Maturing Next Year (Calls) by Issuer and Issue Type:")
             st.dataframe(debt_next_year_table)
         if not avg_spread_next_year_table.empty:
             st.write(f"Average Spread of Debt Maturing Next Year by Issuer and Issue Type:")
             st.dataframe(avg_spread_next_year_table)
+
+        # Visual for issuance per issue type per year per issuer
+        if not filtered_df.empty:
+            issuance_visual_df = filtered_df.groupby(['Year issued','Issuer','Issue Type'])['Size'].sum().reset_index()
+            issuance_visual_fig = px.bar(issuance_visual_df, x='Year issued', y='Size', color='Issue Type', facet_col='Issuer',
+                                         title='Issuance Size per Issue Type per Year per Issuer',
+                                         labels={'Size':'Issuance Size','Year issued':'Year'})
+            st.plotly_chart(issuance_visual_fig, use_container_width=True)
 
         # Visual for debt maturing next year by issuer and issue type
         if not debt_next_year_table.empty:
@@ -131,7 +145,7 @@ try:
             filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
         st.download_button(label='Download Filtered Data (Excel)', data=output.getvalue(), file_name='filtered_data.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-        for fig, name in [(scatter_fig, 'scatter_chart.html'), (trend_fig, 'trend_chart.html'), (liability_fig_bank, 'liability_bank.html'), (liability_fig_type, 'liability_type.html'), (next_year_fig, 'next_year_chart.html')]:
+        for fig, name in [(scatter_fig, 'scatter_chart.html'), (trend_fig, 'trend_chart.html'), (issuance_visual_fig, 'issuance_visual.html'), (liability_fig_bank, 'liability_bank.html'), (liability_fig_type, 'liability_type.html'), (next_year_fig, 'next_year_chart.html')]:
             if fig:
                 html_bytes = fig.to_html().encode('utf-8')
                 st.download_button(label=f"Download {name}", data=html_bytes, file_name=name, mime="text/html")
