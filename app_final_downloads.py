@@ -14,8 +14,8 @@ try:
     st.write("Showing first 10 rows:")
     st.dataframe(df.head(10))
 
-    # Convert date columns safely
-    for col in ['Pricing Date', 'FIRST_CALL', 'Maturity']:
+    # Convert date columns safely (Maturity.1 is date, Maturity is text)
+    for col in ['Pricing Date', 'FIRST_CALL', 'Maturity.1']:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
 
@@ -63,28 +63,48 @@ try:
     else:
         st.write("No data available for selected filters.")
 
-    # Charts
+    # Toggle for trend visualization
+    trend_option = st.sidebar.radio("Select Trend View:", ["Overall Trend", "Per Bank Trend"])
+
     if not filtered_df.empty:
-        if 'Year issued' in filtered_df.columns:
+        if trend_option == "Overall Trend":
             trend_df = filtered_df.groupby('Year issued')['Re-offer Spread'].mean().reset_index()
             trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', title='Average Spread per Year')
-            st.plotly_chart(trend_fig, use_container_width=True)
+        else:
+            trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
+            trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True,
+                                title='Average Spread per Year by Bank')
+        st.plotly_chart(trend_fig, use_container_width=True)
 
-        scatter_fig = px.scatter(
-            filtered_df,
-            x='Pricing Date',
-            y='Re-offer Spread',
-            color='Issuer',
-            hover_data=['Issuer', 'Issue Type', 'ESG Label', 'Maturity', 'FIRST_CALL', 'Pricing Date', 'Re-offer Spread'],
-            title="Greek Banks' debt issuances (2019-2025)"
-        )
-        scatter_fig.update_layout(
-            xaxis_title='Pricing Date',
-            yaxis_title='Re-offer Spread (bps)',
-            yaxis=dict(range=[0, filtered_df['Re-offer Spread'].max() + 50] if not filtered_df.empty else [0, 1000]),
-            legend_title_text='Issuer'
-        )
-        st.plotly_chart(scatter_fig, use_container_width=True)
+    # Scatter plot with corrected hover data
+    scatter_fig = px.scatter(
+        filtered_df,
+        x='Pricing Date',
+        y='Re-offer Spread',
+        color='Issuer',
+        hover_data={'Issuer': True, 'Issue Type': True, 'ESG Label': True, 'Maturity': True, 'Maturity.1': True, 'FIRST_CALL': True, 'Pricing Date': True, 'Re-offer Spread': True},
+        title="Greek Banks' debt issuances (2019-2025)"
+    )
+    scatter_fig.update_layout(
+        xaxis_title='Pricing Date',
+        yaxis_title='Re-offer Spread (bps)',
+        yaxis=dict(range=[0, filtered_df['Re-offer Spread'].max() + 50] if not filtered_df.empty else [0, 1000]),
+        legend_title_text='Issuer'
+    )
+    st.plotly_chart(scatter_fig, use_container_width=True)
+
+    # Liability profile: FIRST_CALL dates per year per bank
+    st.subheader('Liability Profile by Bank (Call Dates per Year)')
+    if 'FIRST_CALL' in filtered_df.columns:
+        call_df = filtered_df.dropna(subset=['FIRST_CALL'])
+        if not call_df.empty:
+            call_df['Call Year'] = call_df['FIRST_CALL'].dt.year
+            liability_fig = px.bar(call_df.groupby(['Call Year', 'Issuer']).size().reset_index(name='Calls'),
+                                   x='Call Year', y='Calls', color='Issuer', barmode='group',
+                                   title='Liability Profile: Number of Calls per Year by Bank')
+            st.plotly_chart(liability_fig, use_container_width=True)
+        else:
+            st.write("No call date data available.")
 
     # Download filtered data
     st.subheader('Download Filtered Data')
