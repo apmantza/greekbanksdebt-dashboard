@@ -60,9 +60,11 @@ try:
     else:
         call_date_range = (None, None)
 
-    # Original Tenor filter
-    tenor_options = sorted(df['Original Tenor'].dropna().unique())
-    selected_tenors = st.sidebar.multiselect('Select Original Tenor (Years):', options=tenor_options)
+    # Original Tenor range slider
+    tenor_min = float(df['Original Tenor'].dropna().min()) if not df['Original Tenor'].dropna().empty else 0.0
+    tenor_max = float(df['Original Tenor'].dropna().max()) if not df['Original Tenor'].dropna().empty else 0.0
+    tenor_range = st.sidebar.slider('Select Original Tenor Range (Years):', min_value=tenor_min, max_value=tenor_max,
+                                    value=(tenor_min, tenor_max), step=0.25)
 
     # Apply filters
     filtered_df = df[(df['Issuer'].isin(issuers)) & (df['Issue Type'].isin(issue_types)) & (df['ESG Label'].isin(esg_labels))]
@@ -70,8 +72,8 @@ try:
         filtered_df = filtered_df[(filtered_df['Pricing Date'] >= date_range[0]) & (filtered_df['Pricing Date'] <= date_range[1])]
     if call_date_range[0] and call_date_range[1]:
         filtered_df = filtered_df[(filtered_df['FIRST_CALL'] >= call_date_range[0]) & (filtered_df['FIRST_CALL'] <= call_date_range[1])]
-    if selected_tenors:
-        filtered_df = filtered_df[filtered_df['Original Tenor'].isin(selected_tenors)]
+    if tenor_range:
+        filtered_df = filtered_df[(filtered_df['Original Tenor'] >= tenor_range[0]) & (filtered_df['Original Tenor'] <= tenor_range[1])]
 
     st.subheader('Summary Metrics')
     if not filtered_df.empty:
@@ -136,6 +138,35 @@ try:
         st.write("Average Spread of Debt Maturing Next Year (Enhanced):")
         st.dataframe(avg_spread_next_year_table)
 
+        # Additional Visuals
+        st.subheader('Additional Visuals')
+
+        # Average Spread Per Year Per Bank Trend
+        trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
+        trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True, title='Average Spread per Year by Bank')
+        st.plotly_chart(trend_fig, use_container_width=True)
+
+        # Scatter Plot
+        scatter_fig = px.scatter(filtered_df, x='Pricing Date', y='Re-offer Spread', color='Issuer',
+                                 hover_data={'Issuer': True, 'Issue Type': True, 'ESG Label': True, 'Maturity': True, 'Maturity.1': True, 'FIRST_CALL': True},
+                                 title="Greek Banks' Debt Issuances")
+        st.plotly_chart(scatter_fig, use_container_width=True)
+
+        # Liability Profiles
+        st.subheader('Liability Profiles')
+        current_year = datetime.now().year
+        call_df = filtered_df.dropna(subset=['FIRST_CALL'])
+        call_df['Call Year'] = call_df['FIRST_CALL'].dt.year
+        call_df = call_df[call_df['Call Year'] >= current_year]
+        if not call_df.empty:
+            liability_df_bank = call_df.groupby(['Call Year', 'Issuer'])['Size'].sum().reset_index()
+            liability_fig_bank = px.bar(liability_df_bank, x='Call Year', y='Size', color='Issuer', barmode='group', title='Liability Profile: Issuance Size per Year by Bank')
+            st.plotly_chart(liability_fig_bank, use_container_width=True)
+
+            liability_df_type = call_df.groupby(['Call Year', 'Issue Type'])['Size'].sum().reset_index()
+            liability_fig_type = px.bar(liability_df_type, x='Call Year', y='Size', color='Issue Type', barmode='group', title='Liability Profile: Issuance Size per Year by Issue Type')
+            st.plotly_chart(liability_fig_type, use_container_width=True)
+
         # Download buttons
         st.subheader('Download Charts and Data')
         csv = filtered_df.to_csv(index=False)
@@ -151,7 +182,11 @@ try:
         # Download visuals
         for fig, name in [(fig_cumulative, 'cumulative_issuance.html'),
                           (fig_year, 'issuance_by_year.html'),
-                          (fig_next_year, 'debt_next_year.html')]:
+                          (fig_next_year, 'debt_next_year.html'),
+                          (trend_fig, 'trend_chart.html'),
+                          (scatter_fig, 'scatter_chart.html'),
+                          (liability_fig_bank if not call_df.empty else None, 'liability_bank.html'),
+                          (liability_fig_type if not call_df.empty else None, 'liability_type.html')]:
             if fig:
                 html_bytes = fig.to_html().encode('utf-8')
                 st.download_button(label=f"Download {name}", data=html_bytes, file_name=name, mime="text/html")
