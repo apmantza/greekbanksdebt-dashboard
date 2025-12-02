@@ -21,7 +21,7 @@ try:
     issue_types = st.sidebar.multiselect('Select Issue Type(s):', options=df['Issue Type'].dropna().unique(), default=df['Issue Type'].dropna().unique())
     esg_labels = st.sidebar.multiselect('Select ESG Label(s):', options=df['ESG Label'].dropna().unique(), default=df['ESG Label'].dropna().unique())
 
-    # Date range filter
+    # Date range filter for pricing
     valid_dates = df['Pricing Date'].dropna()
     if not valid_dates.empty:
         min_date = valid_dates.min().to_pydatetime()
@@ -31,12 +31,23 @@ try:
         st.warning("No valid Pricing Date values found.")
         date_range = (None, None)
 
+    # Toggle for call date range
+    call_valid_dates = df['FIRST_CALL'].dropna()
+    if not call_valid_dates.empty:
+        call_min_date = call_valid_dates.min().to_pydatetime()
+        call_max_date = call_valid_dates.max().to_pydatetime()
+        call_date_range = st.sidebar.slider('Select Call Date Range:', min_value=call_min_date, max_value=call_max_date, value=(call_min_date, call_max_date))
+    else:
+        call_date_range = (None, None)
+
     maturity_filter = st.sidebar.multiselect('Select Maturity:', options=df['Maturity'].dropna().unique())
 
     # Apply filters
     filtered_df = df[(df['Issuer'].isin(issuers)) & (df['Issue Type'].isin(issue_types)) & (df['ESG Label'].isin(esg_labels))]
     if date_range[0] and date_range[1]:
         filtered_df = filtered_df[(filtered_df['Pricing Date'] >= date_range[0]) & (filtered_df['Pricing Date'] <= date_range[1])]
+    if call_date_range[0] and call_date_range[1]:
+        filtered_df = filtered_df[(filtered_df['FIRST_CALL'] >= call_date_range[0]) & (filtered_df['FIRST_CALL'] <= call_date_range[1])]
     if maturity_filter:
         filtered_df = filtered_df[filtered_df['Maturity'].isin(maturity_filter)]
 
@@ -66,7 +77,7 @@ try:
         if avg_spread_next_year:
             st.write(f"Average Spread of Debt Maturing Next Year: {avg_spread_next_year:.2f} bps")
 
-        # Extra visual: Debt maturing next year by issuer
+        # Extra visual: Debt maturing next year by issuer (move before liability profiles)
         if not maturing_next_year.empty:
             next_year_fig = px.bar(maturing_next_year.groupby('Issuer')['Size'].sum().reset_index(),
                                    x='Issuer', y='Size', color='Issuer',
@@ -77,7 +88,7 @@ try:
     else:
         st.write("No data available for selected filters.")
 
-    # First visual: Per Bank Trend (show all issuers)
+    # First visual: Per Bank Trend
     if not filtered_df.empty:
         trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
         trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True,
