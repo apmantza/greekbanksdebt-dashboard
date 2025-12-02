@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from io import BytesIO
+from datetime import datetime
 
 st.title("Greek Banks Debt Dashboard")
 
@@ -20,7 +21,7 @@ try:
     issue_types = st.sidebar.multiselect('Select Issue Type(s):', options=df['Issue Type'].dropna().unique(), default=df['Issue Type'].dropna().unique())
     esg_labels = st.sidebar.multiselect('Select ESG Label(s):', options=df['ESG Label'].dropna().unique(), default=df['ESG Label'].dropna().unique())
 
-    # Date range filter
+    # Date range filter for pricing
     valid_dates = df['Pricing Date'].dropna()
     if not valid_dates.empty:
         min_date = valid_dates.min().to_pydatetime()
@@ -42,51 +43,67 @@ try:
     # Summary metrics
     st.subheader('Summary Metrics')
     if not filtered_df.empty:
-        st.write(f"Total Issuances: {len(filtered_df)}")
-        st.write(f"Average Spread: {round(filtered_df['Re-offer Spread'].mean(), 2)} bps")
+        total_issuances = len(filtered_df)
+        cumulative_issuance = filtered_df['Size'].sum() if 'Size' in filtered_df.columns else None
+        cumulative_by_type = filtered_df.groupby('Issue Type')['Size'].sum() if 'Size' in filtered_df.columns else None
+        avg_issuance_per_year = cumulative_issuance / len(filtered_df['Year issued'].unique()) if cumulative_issuance else None
+
+        next_year = datetime.now().year + 1
+        maturing_next_year = filtered_df[filtered_df['Maturity.1'].dt.year == next_year] if 'Maturity.1' in filtered_df.columns else pd.DataFrame()
+        debt_next_year_size = maturing_next_year['Size'].sum() if 'Size' in maturing_next_year.columns else None
+        avg_spread_next_year = maturing_next_year['Re-offer Spread'].mean() if not maturing_next_year.empty else None
+
+        st.write(f"Total Issuances: {total_issuances}")
+        if cumulative_issuance:
+            st.write(f"Cumulative Issuance Size: {cumulative_issuance:,.0f}")
+        if cumulative_by_type is not None:
+            st.write("Cumulative Issuance by Issue Type:")
+            st.write(cumulative_by_type)
+        if avg_issuance_per_year:
+            st.write(f"Average Issuance per Year: {avg_issuance_per_year:,.0f}")
+        if debt_next_year_size:
+            st.write(f"Debt Maturing Next Year: {debt_next_year_size:,.0f}")
+        if avg_spread_next_year:
+            st.write(f"Average Spread of Debt Maturing Next Year: {avg_spread_next_year:.2f} bps")
+
+        # Extra visual: Debt maturing next year by issuer
+        if not maturing_next_year.empty:
+            next_year_fig = px.bar(maturing_next_year.groupby('Issuer')['Size'].sum().reset_index(),
+                                   x='Issuer', y='Size', color='Issuer',
+                                   title=f'Debt Maturing in {next_year} by Issuer',
+                                   labels={'Size': 'Issuance Size'})
+            st.plotly_chart(next_year_fig, use_container_width=True)
+
     else:
         st.write("No data available for selected filters.")
 
-    # Trend toggle
-    trend_option = st.sidebar.radio("Select Trend View:", ["Overall Trend", "Per Bank Trend"])
+    # First visual: Per Bank Trend (no toggle)
     if not filtered_df.empty:
-        if trend_option == "Overall Trend":
-            trend_df = filtered_df.groupby('Year issued')['Re-offer Spread'].mean().reset_index()
-            trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', title='Average Spread per Year')
-        else:
-            trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
-            trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True,
-                                title='Average Spread per Year by Bank')
+        trend_df = filtered_df.groupby(['Year issued', 'Issuer'])['Re-offer Spread'].mean().reset_index()
+        trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', color='Issuer', markers=True,
+                            title='Average Spread per Year by Bank')
         st.plotly_chart(trend_fig, use_container_width=True)
 
-    # Scatter chart type toggle
-    chart_type = st.sidebar.radio("Select Scatter Chart Type:", ["Scatter", "Bar"])
-    if chart_type == "Scatter":
-        scatter_fig = px.scatter(filtered_df, x='Pricing Date', y='Re-offer Spread', color='Issuer',
-                                 hover_data={'Issuer': True, 'Issue Type': True, 'ESG Label': True, 'Maturity': True, 'Maturity.1': True, 'FIRST_CALL': True},
-                                 title="Greek Banks' Debt Issuances")
-    else:
-        scatter_fig = px.bar(filtered_df, x='Issuer', y='Re-offer Spread', color='Issuer',
-                             title="Average Spread by Issuer")
+    # Second visual: Scatter only
+    scatter_fig = px.scatter(filtered_df, x='Pricing Date', y='Re-offer Spread', color='Issuer',
+                             hover_data={'Issuer': True, 'Issue Type': True, 'ESG Label': True, 'Maturity': True, 'Maturity.1': True, 'FIRST_CALL': True},
+                             title="Greek Banks' Debt Issuances")
     st.plotly_chart(scatter_fig, use_container_width=True)
 
-    # Liability profiles
-    st.subheader('Liability Profile by Bank (Issuance Size per Year)')
+    # Liability profiles (start from current year)
+    st.subheader('Liability Profiles')
+    current_year = datetime.now().year
     if 'FIRST_CALL' in filtered_df.columns and 'Size' in filtered_df.columns:
         call_df = filtered_df.dropna(subset=['FIRST_CALL'])
+        call_df['Call Year'] = call_df['FIRST_CALL'].dt.year
+        call_df = call_df[call_df['Call Year'] >= current_year]
         if not call_df.empty:
-            call_df['Call Year'] = call_df['FIRST_CALL'].dt.year
             liability_df_bank = call_df.groupby(['Call Year', 'Issuer'])['Size'].sum().reset_index()
             liability_fig_bank = px.bar(liability_df_bank, x='Call Year', y='Size', color='Issuer', barmode='group',
                                         title='Liability Profile: Issuance Size per Year by Bank')
             st.plotly_chart(liability_fig_bank, use_container_width=True)
 
-    st.subheader('Liability Profile by Issue Type (Issuance Size per Year)')
-    if 'FIRST_CALL' in filtered_df.columns and 'Size' in filtered_df.columns:
-        call_df_type = filtered_df.dropna(subset=['FIRST_CALL'])
-        if not call_df_type.empty:
-            call_df_type['Call Year'] = call_df_type['FIRST_CALL'].dt.year
-            liability_df_type = call_df_type.groupby(['Call Year', 'Issue Type'])['Size'].sum().reset_index()
+            liability_df_type = call_df.groupby(['Call Year', 'Issue Type'])['Size'].sum().reset_index()
             liability_fig_type = px.bar(liability_df_type, x='Call Year', y='Size', color='Issue Type', barmode='group',
                                         title='Liability Profile: Issuance Size per Year by Issue Type')
             st.plotly_chart(liability_fig_type, use_container_width=True)
@@ -94,7 +111,6 @@ try:
     # Download buttons for charts and data
     st.subheader('Download Charts and Data')
     if not filtered_df.empty:
-        # Download filtered data
         csv = filtered_df.to_csv(index=False)
         st.download_button(label='Download Filtered Data (CSV)', data=csv, file_name='filtered_data.csv', mime='text/csv')
 
@@ -103,8 +119,7 @@ try:
             filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
         st.download_button(label='Download Filtered Data (Excel)', data=output.getvalue(), file_name='filtered_data.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-        # Chart downloads
-        for fig, name in [(scatter_fig, 'scatter_chart.png'), (trend_fig, 'trend_chart.png'), (liability_fig_bank, 'liability_bank.png'), (liability_fig_type, 'liability_type.png')]:
+        for fig, name in [(scatter_fig, 'scatter_chart.png'), (trend_fig, 'trend_chart.png'), (liability_fig_bank, 'liability_bank.png'), (liability_fig_type, 'liability_type.png'), (next_year_fig, 'next_year_chart.png')]:
             if fig:
                 img_bytes = fig.to_image(format="png")
                 st.download_button(label=f"Download {name}", data=img_bytes, file_name=name, mime="image/png")
