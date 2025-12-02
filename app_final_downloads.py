@@ -85,11 +85,11 @@ try:
             st.write(f"Average Spread of Debt Maturing Next Year by Issuer and Issue Type:")
             st.dataframe(avg_spread_next_year_table)
 
-        # Visual for issuance per issue type per year per issuer
+        # Visual for issuance size per year per issuer (replace previous visual)
         if not filtered_df.empty:
-            issuance_visual_df = filtered_df.groupby(['Year issued','Issuer','Issue Type'])['Size'].sum().reset_index()
-            issuance_visual_fig = px.bar(issuance_visual_df, x='Year issued', y='Size', color='Issue Type', facet_col='Issuer',
-                                         title='Issuance Size per Issue Type per Year per Issuer',
+            issuance_visual_df = filtered_df.groupby(['Year issued','Issuer'])['Size'].sum().reset_index()
+            issuance_visual_fig = px.bar(issuance_visual_df, x='Year issued', y='Size', color='Issuer', barmode='group',
+                                         title='Issuance Size per Year per Issuer',
                                          labels={'Size':'Issuance Size','Year issued':'Year'})
             st.plotly_chart(issuance_visual_fig, use_container_width=True)
 
