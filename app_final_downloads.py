@@ -1,41 +1,40 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from io import BytesIO
 
-# Try importing plotly, handle missing dependency gracefully
-try:
-    import plotly.express as px
-    plotly_available = True
-except ModuleNotFoundError:
-    st.error("Plotly is not installed. Please add 'plotly' to requirements.txt or install it locally.")
-    plotly_available = False
+st.title("Greek Banks Debt Dashboard")
 
-# Load updated data safely
+# Load data from fixed path (ensure visuals_updated.xlsx is in the repo)
 file_path = 'visuals_updated.xlsx'
-df = None
 try:
     df = pd.read_excel(file_path, sheet_name='Sheet1', engine='openpyxl')
-except FileNotFoundError:
-    st.error(f"Data file '{file_path}' not found. Please upload it or check the path.")
-except Exception as e:
-    st.error(f"Error loading data: {e}")
 
-if df is not None:
-    # Convert dates
+    # Preview of data
+    st.subheader("Preview of Data from visuals_updated.xlsx")
+    st.write("Showing first 10 rows:")
+    st.dataframe(df.head(10))
+
+    # Convert date columns safely
     for col in ['Pricing Date', 'FIRST_CALL', 'Maturity']:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
 
     # Sidebar filters
     st.sidebar.header('Filters')
-    issuers = st.sidebar.multiselect('Select Issuer(s):', options=df['Issuer'].unique(), default=df['Issuer'].unique())
-    issue_types = st.sidebar.multiselect('Select Issue Type(s):', options=df['Issue Type'].unique(), default=df['Issue Type'].unique())
-    esg_labels = st.sidebar.multiselect('Select ESG Label(s):', options=df['ESG Label'].unique(), default=df['ESG Label'].unique())
+    issuers = st.sidebar.multiselect('Select Issuer(s):', options=df['Issuer'].dropna().unique(), default=df['Issuer'].dropna().unique())
+    issue_types = st.sidebar.multiselect('Select Issue Type(s):', options=df['Issue Type'].dropna().unique(), default=df['Issue Type'].dropna().unique())
+    esg_labels = st.sidebar.multiselect('Select ESG Label(s):', options=df['ESG Label'].dropna().unique(), default=df['ESG Label'].dropna().unique())
 
-    # Date range filter
-    min_date = df['Pricing Date'].min()
-    max_date = df['Pricing Date'].max()
-    date_range = st.sidebar.slider('Select Pricing Date Range:', min_value=min_date, max_value=max_date, value=(min_date, max_date))
+    # Date range filter with NaT handling
+    valid_dates = df['Pricing Date'].dropna()
+    if not valid_dates.empty:
+        min_date = valid_dates.min()
+        max_date = valid_dates.max()
+        date_range = st.sidebar.slider('Select Pricing Date Range:', min_value=min_date, max_value=max_date, value=(min_date, max_date))
+    else:
+        st.warning("No valid Pricing Date values found. Please check your data.")
+        date_range = (None, None)
 
     # Optional filters
     maturity_filter = st.sidebar.multiselect('Select Maturity:', options=df['Maturity'].dropna().unique())
@@ -44,10 +43,10 @@ if df is not None:
     filtered_df = df[
         (df['Issuer'].isin(issuers)) &
         (df['Issue Type'].isin(issue_types)) &
-        (df['ESG Label'].isin(esg_labels)) &
-        (df['Pricing Date'] >= date_range[0]) &
-        (df['Pricing Date'] <= date_range[1])
+        (df['ESG Label'].isin(esg_labels))
     ]
+    if date_range[0] and date_range[1]:
+        filtered_df = filtered_df[(filtered_df['Pricing Date'] >= date_range[0]) & (filtered_df['Pricing Date'] <= date_range[1])]
     if maturity_filter:
         filtered_df = filtered_df[filtered_df['Maturity'].isin(maturity_filter)]
 
@@ -65,8 +64,8 @@ if df is not None:
     else:
         st.write("No data available for selected filters.")
 
-    # Charts only if Plotly is available
-    if plotly_available and not filtered_df.empty:
+    # Charts
+    if not filtered_df.empty:
         # Trend line grouped by year
         if 'Year issued' in filtered_df.columns:
             trend_df = filtered_df.groupby('Year issued')['Re-offer Spread'].mean().reset_index()
@@ -103,3 +102,8 @@ if df is not None:
 
     # Display filtered data table
     st.write('Filtered Data:', filtered_df)
+
+except FileNotFoundError:
+    st.error(f"Data file '{file_path}' not found. Please ensure it is in the GitHub repo.")
+except Exception as e:
+    st.error(f"Error loading data: {e}")
