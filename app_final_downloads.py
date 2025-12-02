@@ -5,7 +5,6 @@ from io import BytesIO
 
 st.title("Greek Banks Debt Dashboard")
 
-# Load data from fixed path (ensure visuals_updated.xlsx is in the repo)
 file_path = 'visuals_updated.xlsx'
 try:
     df = pd.read_excel(file_path, sheet_name='Sheet1', engine='openpyxl')
@@ -26,11 +25,11 @@ try:
     issue_types = st.sidebar.multiselect('Select Issue Type(s):', options=df['Issue Type'].dropna().unique(), default=df['Issue Type'].dropna().unique())
     esg_labels = st.sidebar.multiselect('Select ESG Label(s):', options=df['ESG Label'].dropna().unique(), default=df['ESG Label'].dropna().unique())
 
-    # Date range filter with NaT handling
+    # Date range filter with proper datetime conversion
     valid_dates = df['Pricing Date'].dropna()
     if not valid_dates.empty:
-        min_date = valid_dates.min()
-        max_date = valid_dates.max()
+        min_date = valid_dates.min().to_pydatetime()
+        max_date = valid_dates.max().to_pydatetime()
         date_range = st.sidebar.slider('Select Pricing Date Range:', min_value=min_date, max_value=max_date, value=(min_date, max_date))
     else:
         st.warning("No valid Pricing Date values found. Please check your data.")
@@ -66,13 +65,11 @@ try:
 
     # Charts
     if not filtered_df.empty:
-        # Trend line grouped by year
         if 'Year issued' in filtered_df.columns:
             trend_df = filtered_df.groupby('Year issued')['Re-offer Spread'].mean().reset_index()
             trend_fig = px.line(trend_df, x='Year issued', y='Re-offer Spread', title='Average Spread per Year')
             st.plotly_chart(trend_fig, use_container_width=True)
 
-        # Scatter plot
         scatter_fig = px.scatter(
             filtered_df,
             x='Pricing Date',
@@ -100,10 +97,9 @@ try:
             filtered_df.to_excel(writer, index=False, sheet_name='Filtered Data')
         st.download_button(label='Download Excel', data=output.getvalue(), file_name='filtered_data.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-    # Display filtered data table
     st.write('Filtered Data:', filtered_df)
 
 except FileNotFoundError:
     st.error(f"Data file '{file_path}' not found. Please ensure it is in the GitHub repo.")
 except Exception as e:
-    st.error(f"Error loading data: {e}")
+    st.error(f"Error loading data: {str(e)}")
