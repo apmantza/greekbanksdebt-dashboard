@@ -1,29 +1,24 @@
+
 # Greek Banks Debt Dashboard
 
-## Overview
-This Streamlit app provides an interactive dashboard to analyze Greek banks' debt issuances. It includes:
+An interactive Streamlit app for exploring Greek banks' debt issuance history and analytics. It loads a curated Excel dataset (`visuals_updated.xlsx`).
 
-### Key Features
-- **Filters**: Filter data by Issuer, Issue Type, ESG Label, Pricing Date range, and Original and Remaining Maturities.
+The app provides rich visuals and a **Mount Olympus** podiums section.
 
-### Data and Visuals
-  - Total Issuances
-  - Cumulative Issuance Size
-  - Cumulative Issuance by Issuer and Issue Type
-  - Average Issuance per Year
-  - Debt Maturing Next Year
-  - Average Spread of Debt Maturing Next Year
-  - Per Bank Trend: Average Spread per Year by Bank
-  - Scatter Plot: Debt Issuances over time
-  - Liability Profiles:
-    - Issuance Size per Year by Bank (current and future years only)
-    - Issuance Size per Year by Issue Type (current and future years only)
-  
-- **Download Options**:
-  - Filtered data in CSV and Excel formats
-  - Charts in HTML format
+---
 
-### Notes
-- Liability profiles dynamically filter out past years and only show current and future years.
-- All chart downloads are provided in HTML format for maximum compatibility.
+## Features
 
+- **Overview**: Unfiltered issuance data (counts, average size/spread/tenor) and a quarterly sparkline.
+- **Overall Issuance**: Cumulative issuance by issuer & type; year-by-year volumes; callable debt by year.
+- **Spreads & Coupons**: Scatter visuals vs pricing date and tenor.
+- **Liability Profiles**: Upcoming callable debt by year, by issuer and by instrument type.
+- **Analytics & Forecasts**:
+  - **Average spread by issue type** for future callables.
+  - **Expected New Spread** per issue type (trimmed mean of recent deals; SR Preferred=6, Tier2/AT1=4).
+  - **Spread Momentum** (Δ bps last 24m vs prior 24m) by issue type and by issuer (Top‑10 by |Δ|).
+  - **Tenor–Spread slope (OLS)** for **Senior Preferred** (last 24m, minimum N=3 per issuer).
+  - **Issuer Seasonality** by quarter (deal counts; clustered bars + heatmap).
+- **Tables**: Filtered data tables and aggregations.
+- **Mount Olympus**: Podiums for tightest Senior Preferred, Tier2, AT1; Highest/Lowest spreads; Shortest/Longest tenors. Big medal icons and per‑podium source row preview.
+- **Downloads**: Export filtered data to CSV/Excel.
